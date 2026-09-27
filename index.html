@@ -18,8 +18,8 @@ body {
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    font-family: monospace;
     overflow: hidden;
+    font-family: monospace;
 }
 
 #game {
@@ -30,7 +30,6 @@ body {
     max-height: 100vh;
     overflow: hidden;
     background: #75c9ed;
-    image-rendering: pixelated;
 }
 
 canvas {
@@ -51,6 +50,7 @@ canvas {
     font-weight: bold;
     text-shadow: 3px 3px #263238;
     pointer-events: none;
+    z-index: 3;
 }
 
 #message {
@@ -61,9 +61,9 @@ canvas {
     align-items: center;
     flex-direction: column;
     color: white;
-    background: rgba(10, 20, 25, .75);
+    background: rgba(10, 15, 20, .82);
     text-align: center;
-    z-index: 5;
+    z-index: 10;
 }
 
 #message h1 {
@@ -76,6 +76,7 @@ canvas {
 #message p {
     font-size: 18px;
     line-height: 1.8;
+    max-width: 700px;
 }
 
 button {
@@ -92,6 +93,35 @@ button {
 
 button:hover {
     background: #f47b5f;
+}
+
+#cutscene {
+    position: absolute;
+    inset: 0;
+    background: #050505;
+    z-index: 20;
+    color: white;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    text-align: center;
+}
+
+#cutsceneText {
+    font-size: 28px;
+    line-height: 1.8;
+    max-width: 750px;
+    min-height: 150px;
+}
+
+#skip {
+    position: absolute;
+    bottom: 25px;
+    right: 25px;
+    font-size: 14px;
+    background: #333;
+    border-color: #777;
 }
 </style>
 </head>
@@ -110,13 +140,26 @@ button:hover {
 </div>
 
 <div id="message">
+
     <h1>DINO DASH</h1>
+
     <p>
         ← → / A D &nbsp; MOVE<br>
-        SPACE / W / ↑ &nbsp; JUMP<br>
-        Collect bones. Avoid enemies. Reach the flag!
+        SPACE / W / ↑ &nbsp; JUMP<br><br>
+        Stomp enemies to make them drop bones.<br>
+        Collect the bones and reach the flag!
     </p>
+
     <button id="start">START GAME</button>
+
+</div>
+
+<div id="cutscene">
+
+    <div id="cutsceneText"></div>
+
+    <button id="skip">SKIP</button>
+
 </div>
 
 </div>
@@ -132,12 +175,14 @@ const HEIGHT = canvas.height;
 ctx.imageSmoothingEnabled = false;
 
 
-/* =========================
+/* =========================================================
    GAME STATE
-========================= */
+========================================================= */
 
 let running = false;
 let gameOver = false;
+
+let level = 1;
 
 let cameraX = 0;
 
@@ -149,14 +194,17 @@ let keys = {};
 
 let levelWidth = 7000;
 
+let lavaLevel = null;
+
 let lastTime = 0;
 
 
-/* =========================
+/* =========================================================
    PLAYER
-========================= */
+========================================================= */
 
 const player = {
+
     x: 120,
     y: 300,
 
@@ -179,14 +227,16 @@ const player = {
 };
 
 
-/* =========================
-   LEVEL
-========================= */
+/* =========================================================
+   LEVEL DATA
+========================================================= */
 
 let platforms = [];
 let enemies = [];
 let collectibles = [];
+let droppedBones = [];
 let particles = [];
+let lavaPools = [];
 
 let flag = {
     x: 6700,
@@ -194,9 +244,9 @@ let flag = {
 };
 
 
-/* =========================
+/* =========================================================
    INPUT
-========================= */
+========================================================= */
 
 window.addEventListener("keydown", e => {
 
@@ -205,11 +255,11 @@ window.addEventListener("keydown", e => {
     if (
         e.key === " " ||
         e.key === "ArrowUp" ||
-        e.key.toLowerCase() === "w"
+        e.key === "ArrowLeft" ||
+        e.key === "ArrowRight"
     ) {
         e.preventDefault();
     }
-
 });
 
 window.addEventListener("keyup", e => {
@@ -217,143 +267,18 @@ window.addEventListener("keyup", e => {
 });
 
 
-/* =========================
-   LEVEL GENERATION
-========================= */
+/* =========================================================
+   BASIC HELPERS
+========================================================= */
 
-function createLevel() {
+function collision(a, b) {
 
-    platforms = [];
-    enemies = [];
-    collectibles = [];
-
-    // Ground sections
-
-    platforms.push({
-        x: 0,
-        y: 460,
-        width: 850,
-        height: 80
-    });
-
-    platforms.push({
-        x: 950,
-        y: 460,
-        width: 800,
-        height: 80
-    });
-
-    platforms.push({
-        x: 1850,
-        y: 460,
-        width: 1100,
-        height: 80
-    });
-
-    platforms.push({
-        x: 3050,
-        y: 460,
-        width: 900,
-        height: 80
-    });
-
-    platforms.push({
-        x: 4050,
-        y: 460,
-        width: 1000,
-        height: 80
-    });
-
-    platforms.push({
-        x: 5150,
-        y: 460,
-        width: 1700,
-        height: 80
-    });
-
-
-    // Floating platforms
-
-    addPlatform(500, 350, 160, 25);
-    addPlatform(720, 290, 130, 25);
-
-    addPlatform(1100, 350, 150, 25);
-    addPlatform(1350, 280, 140, 25);
-    addPlatform(1600, 350, 120, 25);
-
-    addPlatform(2000, 350, 180, 25);
-    addPlatform(2300, 290, 150, 25);
-    addPlatform(2600, 350, 150, 25);
-
-    addPlatform(3200, 340, 170, 25);
-    addPlatform(3500, 270, 140, 25);
-
-    addPlatform(4250, 350, 170, 25);
-    addPlatform(4550, 280, 140, 25);
-
-    addPlatform(5350, 350, 160, 25);
-    addPlatform(5650, 280, 140, 25);
-    addPlatform(6000, 340, 170, 25);
-
-    addPlatform(6350, 270, 150, 25);
-
-
-    // Enemies
-
-    addEnemy(620, 415, 620);
-    addEnemy(1200, 415, 1200);
-    addEnemy(1450, 415, 1450);
-    addEnemy(2150, 415, 2150);
-    addEnemy(2750, 415, 2750);
-    addEnemy(3300, 415, 3300);
-    addEnemy(3700, 415, 3700);
-    addEnemy(4400, 415, 4400);
-    addEnemy(4900, 415, 4900);
-    addEnemy(5500, 415, 5500);
-    addEnemy(6100, 415, 6100);
-
-
-    // Bones
-
-    const bonePositions = [
-        [350, 410],
-        [550, 315],
-        [770, 255],
-
-        [1050, 410],
-        [1170, 315],
-        [1420, 245],
-        [1630, 315],
-
-        [1950, 410],
-        [2070, 315],
-        [2370, 255],
-        [2660, 315],
-
-        [3250, 305],
-        [3530, 235],
-        [3800, 410],
-
-        [4200, 410],
-        [4300, 315],
-        [4580, 245],
-
-        [5300, 410],
-        [5400, 315],
-        [5700, 245],
-        [6050, 305],
-        [6400, 235],
-        [6600, 410]
-    ];
-
-    for (const [x, y] of bonePositions) {
-        collectibles.push({
-            x,
-            y,
-            collected: false,
-            bob: Math.random() * Math.PI * 2
-        });
-    }
+    return (
+        a.x < b.x + b.width &&
+        a.x + a.width > b.x &&
+        a.y < b.y + b.height &&
+        a.y + a.height > b.y
+    );
 }
 
 
@@ -368,44 +293,400 @@ function addPlatform(x, y, width, height) {
 }
 
 
-function addEnemy(x, y, home) {
+function addEnemy(x, home, type = "normal") {
 
     enemies.push({
+
         x,
-        y,
-        width: 40,
-        height: 40,
 
-        vx: 1.2,
+        y: 420,
 
-        left: home - 100,
-        right: home + 100,
+        width: type === "big" ? 52 : 40,
+        height: type === "big" ? 50 : 40,
+
+        vx: type === "fast" ? 1.8 : 1.2,
+
+        left: home - 120,
+        right: home + 120,
 
         alive: true,
+
+        type,
 
         anim: Math.random() * 10
     });
 }
 
 
-/* =========================
-   COLLISION
-========================= */
+function addBone(x, y) {
 
-function collision(a, b) {
+    collectibles.push({
 
-    return (
-        a.x < b.x + b.width &&
-        a.x + a.width > b.x &&
-        a.y < b.y + b.height &&
-        a.y + a.height > b.y
-    );
+        x,
+        y,
+
+        collected: false,
+
+        bob: Math.random() * Math.PI * 2,
+
+        spin: Math.random() * Math.PI * 2
+    });
 }
 
 
-/* =========================
-   PLAYER UPDATE
-========================= */
+function addLava(x, width) {
+
+    lavaPools.push({
+        x,
+        width
+    });
+}
+
+
+/* =========================================================
+   CREATE LEVEL
+========================================================= */
+
+function createLevel(number) {
+
+    platforms = [];
+    enemies = [];
+    collectibles = [];
+    droppedBones = [];
+    particles = [];
+    lavaPools = [];
+
+    cameraX = 0;
+
+    lavaLevel = null;
+
+    flag = {
+        x: 6700,
+        y: 270
+    };
+
+
+    /*
+        LEVEL 1
+        Grasslands
+    */
+
+    if (number === 1) {
+
+        levelWidth = 7000;
+
+        addPlatform(0, 460, 900, 80);
+        addPlatform(1000, 460, 900, 80);
+        addPlatform(2000, 460, 1000, 80);
+        addPlatform(3100, 460, 900, 80);
+        addPlatform(4100, 460, 1000, 80);
+        addPlatform(5200, 460, 1800, 80);
+
+        addPlatform(500, 350, 160, 25);
+        addPlatform(720, 290, 130, 25);
+
+        addPlatform(1150, 350, 150, 25);
+        addPlatform(1450, 280, 140, 25);
+
+        addPlatform(2150, 350, 170, 25);
+        addPlatform(2450, 290, 140, 25);
+
+        addPlatform(3250, 350, 160, 25);
+        addPlatform(3500, 280, 140, 25);
+
+        addPlatform(4300, 350, 170, 25);
+        addPlatform(4600, 280, 140, 25);
+
+        addPlatform(5400, 350, 160, 25);
+        addPlatform(5750, 280, 140, 25);
+        addPlatform(6200, 340, 160, 25);
+
+        addEnemy(650, 650);
+        addEnemy(1250, 1250);
+        addEnemy(2250, 2250);
+        addEnemy(3350, 3350);
+        addEnemy(4450, 4450);
+        addEnemy(5550, 5550);
+
+        const bones = [
+            [350, 410],
+            [550, 315],
+            [770, 255],
+            [1150, 315],
+            [1450, 245],
+            [2150, 315],
+            [2500, 255],
+            [3300, 315],
+            [3550, 245],
+            [4350, 315],
+            [4650, 245],
+            [5450, 315],
+            [5800, 245],
+            [6250, 305]
+        ];
+
+        bones.forEach(b => addBone(b[0], b[1]));
+    }
+
+
+    /*
+        LEVEL 2
+        Lava Valley
+    */
+
+    if (number === 2) {
+
+        levelWidth = 7600;
+
+        addPlatform(0, 460, 700, 80);
+        addPlatform(850, 460, 500, 80);
+        addPlatform(1500, 460, 650, 80);
+        addPlatform(2300, 460, 500, 80);
+        addPlatform(3000, 460, 900, 80);
+        addPlatform(4050, 460, 450, 80);
+        addPlatform(4700, 460, 600, 80);
+        addPlatform(5500, 460, 2100, 80);
+
+        addLava(700, 150);
+        addLava(1350, 150);
+        addLava(2150, 150);
+        addLava(2800, 200);
+        addLava(3900, 150);
+        addLava(4500, 200);
+        addLava(5300, 200);
+
+        addPlatform(500, 350, 120, 25);
+        addPlatform(750, 300, 100, 25);
+        addPlatform(1100, 330, 120, 25);
+
+        addPlatform(1600, 350, 150, 25);
+        addPlatform(1900, 280, 120, 25);
+
+        addPlatform(2350, 350, 130, 25);
+        addPlatform(2600, 280, 120, 25);
+
+        addPlatform(3150, 340, 150, 25);
+        addPlatform(3450, 280, 130, 25);
+
+        addPlatform(4150, 350, 130, 25);
+        addPlatform(4800, 340, 150, 25);
+
+        addEnemy(450, 450);
+        addEnemy(1100, 1100, "fast");
+        addEnemy(1750, 1750);
+        addEnemy(2500, 2500, "fast");
+        addEnemy(3300, 3300);
+        addEnemy(4200, 4200, "fast");
+        addEnemy(4900, 4900);
+        addEnemy(5900, 5900);
+
+        [
+            [350,410],
+            [550,315],
+            [1120,295],
+            [1650,315],
+            [1930,245],
+            [2400,315],
+            [2650,245],
+            [3200,305],
+            [3500,245],
+            [4200,315],
+            [4850,305],
+            [5600,410],
+            [6000,410],
+            [6500,410]
+        ].forEach(b => addBone(b[0], b[1]));
+    }
+
+
+    /*
+        LEVEL 3
+        Jungle
+    */
+
+    if (number === 3) {
+
+        levelWidth = 8000;
+
+        addPlatform(0, 460, 1200, 80);
+        addPlatform(1300, 460, 1000, 80);
+        addPlatform(2400, 460, 1200, 80);
+        addPlatform(3700, 460, 800, 80);
+        addPlatform(4600, 460, 1300, 80);
+        addPlatform(6000, 460, 2000, 80);
+
+        addLava(1200, 100);
+        addLava(2300, 100);
+        addLava(3600, 100);
+        addLava(4500, 100);
+        addLava(5900, 100);
+
+        for (let i = 0; i < 12; i++) {
+
+            addPlatform(
+                400 + i * 550,
+                300 - (i % 2) * 70,
+                130,
+                25
+            );
+        }
+
+        addEnemy(700, 700);
+        addEnemy(1500, 1500, "fast");
+        addEnemy(1900, 1900);
+        addEnemy(2700, 2700, "big");
+        addEnemy(3150, 3150);
+        addEnemy(3950, 3950, "fast");
+        addEnemy(4800, 4800);
+        addEnemy(5300, 5300, "big");
+        addEnemy(6200, 6200, "fast");
+        addEnemy(6900, 6900);
+        addEnemy(7400, 7400, "big");
+
+        for (let x = 300; x < 7600; x += 350) {
+
+            addBone(
+                x,
+                400 - Math.sin(x) * 80
+            );
+        }
+    }
+
+
+    /*
+        LEVEL 4
+        Mountain
+    */
+
+    if (number === 4) {
+
+        levelWidth = 8500;
+
+        addPlatform(0, 460, 900, 80);
+        addPlatform(1050, 460, 800, 80);
+        addPlatform(2000, 460, 650, 80);
+        addPlatform(2800, 460, 1000, 80);
+        addPlatform(3950, 460, 700, 80);
+        addPlatform(4800, 460, 800, 80);
+        addPlatform(5750, 460, 900, 80);
+        addPlatform(6800, 460, 1700, 80);
+
+        addLava(900, 150);
+        addLava(1850, 150);
+        addLava(2650, 150);
+        addLava(3800, 150);
+        addLava(4650, 150);
+        addLava(5600, 150);
+        addLava(6650, 150);
+
+        addPlatform(400, 340, 140, 25);
+        addPlatform(650, 250, 130, 25);
+
+        addPlatform(1200, 350, 140, 25);
+        addPlatform(1500, 260, 130, 25);
+
+        addPlatform(2150, 350, 140, 25);
+        addPlatform(2400, 260, 130, 25);
+
+        addPlatform(3000, 340, 140, 25);
+        addPlatform(3300, 250, 130, 25);
+
+        addPlatform(4100, 340, 140, 25);
+        addPlatform(4400, 260, 130, 25);
+
+        addPlatform(4950, 350, 140, 25);
+        addPlatform(5250, 260, 130, 25);
+
+        addEnemy(500, 500);
+        addEnemy(1300, 1300, "fast");
+        addEnemy(2200, 2200, "big");
+        addEnemy(3100, 3100);
+        addEnemy(4200, 4200, "fast");
+        addEnemy(5000, 5000, "big");
+        addEnemy(6000, 6000, "fast");
+        addEnemy(7200, 7200, "big");
+        addEnemy(7900, 7900);
+
+        for (let x = 300; x < 8000; x += 420) {
+            addBone(x, 410);
+        }
+    }
+
+
+    /*
+        LEVEL 5
+        VOLCANO ESCAPE
+    */
+
+    if (number === 5) {
+
+        levelWidth = 10000;
+
+        lavaLevel = 530;
+
+        addPlatform(0, 460, 1000, 80);
+        addPlatform(1100, 460, 800, 80);
+        addPlatform(2000, 460, 900, 80);
+        addPlatform(3000, 460, 900, 80);
+        addPlatform(4000, 460, 900, 80);
+        addPlatform(5000, 460, 1000, 80);
+        addPlatform(6100, 460, 900, 80);
+        addPlatform(7100, 460, 2900, 80);
+
+        addLava(1000, 100);
+        addLava(1900, 100);
+        addLava(2900, 100);
+        addLava(3900, 100);
+        addLava(4900, 100);
+        addLava(6000, 100);
+        addLava(7000, 100);
+
+        addPlatform(500, 350, 150, 25);
+        addPlatform(800, 280, 130, 25);
+
+        addPlatform(1250, 350, 150, 25);
+        addPlatform(1550, 280, 130, 25);
+
+        addPlatform(2150, 350, 150, 25);
+        addPlatform(2450, 270, 130, 25);
+
+        addPlatform(3150, 350, 150, 25);
+        addPlatform(3500, 270, 130, 25);
+
+        addPlatform(4150, 350, 150, 25);
+        addPlatform(4500, 270, 130, 25);
+
+        addPlatform(5150, 350, 150, 25);
+        addPlatform(5500, 270, 130, 25);
+
+        addPlatform(6250, 350, 150, 25);
+        addPlatform(6600, 270, 130, 25);
+
+        addEnemy(600, 600, "fast");
+        addEnemy(1350, 1350);
+        addEnemy(2250, 2250, "fast");
+        addEnemy(3200, 3200);
+        addEnemy(4250, 4250, "big");
+        addEnemy(5200, 5200, "fast");
+        addEnemy(6350, 6350);
+        addEnemy(7500, 7500, "big");
+        addEnemy(8300, 8300, "fast");
+        addEnemy(9000, 9000, "big");
+
+        for (let x = 300; x < 9500; x += 380) {
+
+            addBone(
+                x,
+                400 - ((x / 380) % 2) * 80
+            );
+        }
+    }
+}
+
+
+/* =========================================================
+   PLAYER
+========================================================= */
 
 function updatePlayer() {
 
@@ -415,12 +696,14 @@ function updatePlayer() {
 
         player.vx = -player.speed;
         player.facing = -1;
+
         moving = true;
 
     } else if (keys["arrowright"] || keys["d"]) {
 
         player.vx = player.speed;
         player.facing = 1;
+
         moving = true;
 
     } else {
@@ -438,7 +721,6 @@ function updatePlayer() {
 
         player.vy = player.jump;
         player.grounded = false;
-
     }
 
 
@@ -449,8 +731,6 @@ function updatePlayer() {
 
     player.grounded = false;
 
-
-    // Platform collision
 
     for (const p of platforms) {
 
@@ -472,14 +752,36 @@ function updatePlayer() {
     }
 
 
-    // World boundaries
-
     if (player.x < 0) {
         player.x = 0;
     }
 
 
-    // Fell off map
+    // Regular lava
+
+    for (const lava of lavaPools) {
+
+        if (
+            player.x + player.width > lava.x &&
+            player.x < lava.x + lava.width &&
+            player.y + player.height > 450
+        ) {
+
+            loseLife();
+        }
+    }
+
+
+    // Volcano lava
+
+    if (
+        lavaLevel !== null &&
+        player.y + player.height > lavaLevel
+    ) {
+
+        loseLife();
+    }
+
 
     if (player.y > HEIGHT + 100) {
 
@@ -498,9 +800,9 @@ function updatePlayer() {
 }
 
 
-/* =========================
+/* =========================================================
    ENEMIES
-========================= */
+========================================================= */
 
 function updateEnemies() {
 
@@ -526,11 +828,14 @@ function updateEnemies() {
             collision(player, enemy)
         ) {
 
-            // Jumping on enemy
+            /*
+                STOMP
+            */
 
             if (
                 player.vy > 0 &&
-                player.y + player.height - 10 < enemy.y + 15
+                player.y + player.height - 12 <
+                enemy.y + 18
             ) {
 
                 enemy.alive = false;
@@ -539,10 +844,37 @@ function updateEnemies() {
 
                 score += 250;
 
+                /*
+                    THIS IS THE IMPORTANT PART:
+                    The enemy visibly drops a bone.
+                */
+
+                droppedBones.push({
+
+                    x: enemy.x + enemy.width / 2,
+
+                    y: enemy.y - 5,
+
+                    vx:
+                        (Math.random() - .5) * 3,
+
+                    vy: -8,
+
+                    rotation: 0,
+
+                    spin:
+                        (Math.random() - .5) * .25,
+
+                    life: 600,
+
+                    collectible: false
+                });
+
+
                 spawnParticles(
                     enemy.x + 20,
                     enemy.y + 20,
-                    15
+                    18
                 );
 
             } else {
@@ -554,9 +886,88 @@ function updateEnemies() {
 }
 
 
-/* =========================
+/* =========================================================
+   DROPPED BONE PHYSICS
+========================================================= */
+
+function updateDroppedBones() {
+
+    for (
+        let i = droppedBones.length - 1;
+        i >= 0;
+        i--
+    ) {
+
+        const bone = droppedBones[i];
+
+        bone.vy += 0.35;
+
+        bone.x += bone.vx;
+        bone.y += bone.vy;
+
+        bone.rotation += bone.spin;
+
+        bone.life--;
+
+
+        /*
+            Let the dropped bone bounce
+        */
+
+        if (bone.y > 425) {
+
+            bone.y = 425;
+
+            bone.vy *= -0.55;
+
+            bone.vx *= 0.92;
+
+            bone.spin *= 0.9;
+        }
+
+
+        /*
+            Player collects it
+        */
+
+        const hitbox = {
+
+            x: bone.x - 14,
+            y: bone.y - 14,
+
+            width: 28,
+            height: 28
+        };
+
+
+        if (collision(player, hitbox)) {
+
+            score += 150;
+            bones++;
+
+            spawnParticles(
+                bone.x,
+                bone.y,
+                14
+            );
+
+            droppedBones.splice(i, 1);
+
+            continue;
+        }
+
+
+        if (bone.life <= 0) {
+
+            droppedBones.splice(i, 1);
+        }
+    }
+}
+
+
+/* =========================================================
    COLLECTIBLES
-========================= */
+========================================================= */
 
 function updateCollectibles() {
 
@@ -565,19 +976,24 @@ function updateCollectibles() {
         if (bone.collected) continue;
 
         bone.bob += 0.08;
+        bone.spin += 0.04;
 
         const hitbox = {
-            x: bone.x - 12,
-            y: bone.y - 12,
-            width: 24,
-            height: 24
+
+            x: bone.x - 14,
+            y: bone.y - 14,
+
+            width: 28,
+            height: 28
         };
+
 
         if (collision(player, hitbox)) {
 
             bone.collected = true;
 
             bones++;
+
             score += 100;
 
             spawnParticles(
@@ -590,9 +1006,9 @@ function updateCollectibles() {
 }
 
 
-/* =========================
+/* =========================================================
    CAMERA
-========================= */
+========================================================= */
 
 function updateCamera() {
 
@@ -613,27 +1029,33 @@ function updateCamera() {
 }
 
 
-/* =========================
-   DAMAGE
-========================= */
+/* =========================================================
+   LIVES
+========================================================= */
 
 function loseLife() {
 
-    if (player.invincible > 0) return;
+    if (player.invincible > 0) {
+        return;
+    }
 
     lives--;
 
     updateHUD();
 
+
     if (lives <= 0) {
 
-        gameOver = true;
         running = false;
 
         showMessage(
             "GAME OVER",
-            "Score: " + score +
-            "<br>Bones: " + bones,
+            "Score: " +
+            score +
+            "<br>Bones: " +
+            bones +
+            "<br>Reached World " +
+            level,
             "TRY AGAIN"
         );
 
@@ -642,7 +1064,10 @@ function loseLife() {
 
 
     player.x =
-        Math.max(100, player.x - 250);
+        Math.max(
+            100,
+            player.x - 300
+        );
 
     player.y = 300;
 
@@ -653,46 +1078,124 @@ function loseLife() {
 }
 
 
-/* =========================
+/* =========================================================
    FLAG
-========================= */
+========================================================= */
 
 function checkFlag() {
 
     const goal = {
+
         x: flag.x,
         y: flag.y,
-        width: 50,
+
+        width: 55,
         height: 190
     };
 
+
     if (collision(player, goal)) {
 
-        score += 1000;
+        if (level === 4) {
 
-        running = false;
+            running = false;
 
-        showMessage(
-            "LEVEL COMPLETE!",
-            "Score: " +
-            score +
-            "<br>Bones: " +
-            bones,
-            "PLAY AGAIN"
-        );
+            startVolcanoCutscene();
+
+        } else if (level < 5) {
+
+            level++;
+
+            startLevel();
+
+        } else {
+
+            running = false;
+
+            showMessage(
+                "YOU ESCAPED!",
+                "You survived the volcano!<br><br>" +
+                "Final Score: " +
+                score +
+                "<br>Total Bones: " +
+                bones,
+                "PLAY AGAIN"
+            );
+        }
     }
 }
 
 
-/* =========================
+/* =========================================================
+   VOLCANO
+========================================================= */
+
+function updateVolcano() {
+
+    if (level !== 5 || lavaLevel === null) {
+        return;
+    }
+
+
+    /*
+        The lava slowly rises.
+    */
+
+    lavaLevel -= 0.025;
+
+
+    /*
+        The farther the player gets,
+        the faster the volcano becomes.
+    */
+
+    if (player.x > 4000) {
+        lavaLevel -= 0.018;
+    }
+
+    if (player.x > 6500) {
+        lavaLevel -= 0.025;
+    }
+
+
+    // Lava particles
+
+    if (Math.random() < 0.25) {
+
+        particles.push({
+
+            x:
+                cameraX +
+                Math.random() * WIDTH,
+
+            y:
+                lavaLevel,
+
+            vx:
+                Math.random() * 2 - 1,
+
+            vy:
+                -Math.random() * 4,
+
+            life: 40,
+
+            size:
+                3 + Math.random() * 5
+        });
+    }
+}
+
+
+/* =========================================================
    PARTICLES
-========================= */
+========================================================= */
 
 function spawnParticles(x, y, amount) {
 
     for (let i = 0; i < amount; i++) {
 
         particles.push({
+
             x,
             y,
 
@@ -702,10 +1205,13 @@ function spawnParticles(x, y, amount) {
             vy:
                 Math.random() * -6 - 1,
 
-            life: 30 + Math.random() * 20,
+            life:
+                30 +
+                Math.random() * 30,
 
             size:
-                3 + Math.random() * 5
+                3 +
+                Math.random() * 5
         });
     }
 }
@@ -713,7 +1219,11 @@ function spawnParticles(x, y, amount) {
 
 function updateParticles() {
 
-    for (let i = particles.length - 1; i >= 0; i--) {
+    for (
+        let i = particles.length - 1;
+        i >= 0;
+        i--
+    ) {
 
         const p = particles[i];
 
@@ -725,59 +1235,106 @@ function updateParticles() {
         p.life--;
 
         if (p.life <= 0) {
+
             particles.splice(i, 1);
         }
     }
 }
 
 
-/* =========================
-   DRAW BACKGROUND
-========================= */
+/* =========================================================
+   BACKGROUND
+========================================================= */
 
 function drawBackground() {
 
-    // Sky
-
-    ctx.fillStyle = "#75c9ed";
-    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    let skyColor = "#75c9ed";
 
 
-    // Sun
+    if (level === 2) {
+        skyColor = "#ef9b61";
+    }
 
-    ctx.fillStyle = "#fff18a";
+    if (level === 3) {
+        skyColor = "#58b98c";
+    }
 
-    ctx.beginPath();
-    ctx.arc(
-        770,
-        90,
-        45,
+    if (level === 4) {
+        skyColor = "#8b9ba5";
+    }
+
+    if (level === 5) {
+        skyColor = "#3d2024";
+    }
+
+
+    ctx.fillStyle = skyColor;
+
+    ctx.fillRect(
         0,
-        Math.PI * 2
+        0,
+        WIDTH,
+        HEIGHT
     );
-    ctx.fill();
 
 
-    // Far mountains
+    /*
+        Sun
+    */
 
-    ctx.fillStyle = "#77a9a0";
+    if (level < 5) {
 
-    for (let x = -500; x < levelWidth; x += 500) {
+        ctx.fillStyle =
+            level === 4
+            ? "#ffe5a0"
+            : "#fff18a";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            770,
+            90,
+            45,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+    }
+
+
+    /*
+        Mountains
+    */
+
+    ctx.fillStyle =
+        level === 5
+        ? "#26181b"
+        : level === 4
+        ? "#59676e"
+        : "#77a9a0";
+
+
+    for (
+        let x = -500;
+        x < levelWidth;
+        x += 500
+    ) {
 
         ctx.beginPath();
 
         ctx.moveTo(
-            x - cameraX * 0.15,
+            x - cameraX * .15,
             390
         );
 
         ctx.lineTo(
-            x + 250 - cameraX * 0.15,
-            180
+            x + 250 - cameraX * .15,
+            level === 4 ? 130 : 180
         );
 
         ctx.lineTo(
-            x + 500 - cameraX * 0.15,
+            x + 500 - cameraX * .15,
             390
         );
 
@@ -785,54 +1342,105 @@ function drawBackground() {
     }
 
 
-    // Clouds
+    /*
+        Volcano in background
+    */
 
-    ctx.fillStyle = "rgba(255,255,255,.75)";
+    if (level === 5) {
 
-    for (let i = 0; i < 12; i++) {
+        const volcanoX =
+            700 - cameraX * .12;
 
-        let x =
-            i * 700 -
-            (cameraX * 0.25 % 700);
+        ctx.fillStyle = "#171215";
 
-        let y =
-            70 +
-            (i % 3) * 55;
+        ctx.beginPath();
 
-        ctx.fillRect(
-            x,
-            y,
-            100,
-            20
-        );
+        ctx.moveTo(volcanoX - 300, 390);
 
-        ctx.fillRect(
-            x + 25,
-            y - 15,
-            50,
-            35
-        );
+        ctx.lineTo(volcanoX, 80);
+
+        ctx.lineTo(volcanoX + 300, 390);
+
+        ctx.fill();
+
+
+        // Lava on volcano
+
+        ctx.strokeStyle = "#ff5a2a";
+        ctx.lineWidth = 8;
+
+        ctx.beginPath();
+
+        ctx.moveTo(volcanoX, 100);
+        ctx.lineTo(volcanoX - 30, 220);
+        ctx.lineTo(volcanoX - 10, 310);
+
+        ctx.stroke();
+    }
+
+
+    /*
+        Clouds
+    */
+
+    if (level !== 5) {
+
+        ctx.fillStyle =
+            "rgba(255,255,255,.7)";
+
+        for (let i = 0; i < 12; i++) {
+
+            let x =
+                i * 700 -
+                (cameraX * .25 % 700);
+
+            let y =
+                70 +
+                (i % 3) * 55;
+
+            ctx.fillRect(
+                x,
+                y,
+                100,
+                20
+            );
+
+            ctx.fillRect(
+                x + 25,
+                y - 15,
+                50,
+                35
+            );
+        }
     }
 }
 
 
-/* =========================
-   DRAW PLATFORM
-========================= */
+/* =========================================================
+   PLATFORM
+========================================================= */
 
 function drawPlatform(p) {
 
-    const x = p.x - cameraX;
+    const x =
+        p.x - cameraX;
+
 
     if (
         x + p.width < 0 ||
         x > WIDTH
-    ) return;
+    ) {
+        return;
+    }
 
 
-    // Dirt
+    ctx.fillStyle =
+        level === 5
+        ? "#3d3430"
+        : level === 4
+        ? "#5a4b40"
+        : "#8b542f";
 
-    ctx.fillStyle = "#8b542f";
 
     ctx.fillRect(
         x,
@@ -842,9 +1450,11 @@ function drawPlatform(p) {
     );
 
 
-    // Grass
+    ctx.fillStyle =
+        level === 5
+        ? "#5b3028"
+        : "#4e9b45";
 
-    ctx.fillStyle = "#4e9b45";
 
     ctx.fillRect(
         x,
@@ -854,9 +1464,11 @@ function drawPlatform(p) {
     );
 
 
-    // Grass pixels
+    ctx.fillStyle =
+        level === 5
+        ? "#d64b25"
+        : "#79c34d";
 
-    ctx.fillStyle = "#79c34d";
 
     for (
         let i = 0;
@@ -871,75 +1483,276 @@ function drawPlatform(p) {
             5
         );
     }
+}
 
 
-    // Dirt pixels
+/* =========================================================
+   LAVA
+========================================================= */
 
-    ctx.fillStyle = "#633d28";
+function drawLava() {
 
-    for (
-        let i = 10;
-        i < p.width;
-        i += 35
-    ) {
+    /*
+        Normal lava pits
+    */
+
+    for (const lava of lavaPools) {
+
+        const x =
+            lava.x - cameraX;
+
+
+        ctx.fillStyle = "#ff4b16";
 
         ctx.fillRect(
-            x + i,
-            p.y + 30,
-            8,
-            8
+            x,
+            455,
+            lava.width,
+            85
         );
+
+
+        ctx.fillStyle = "#ffb300";
+
+        for (
+            let i = 0;
+            i < lava.width;
+            i += 35
+        ) {
+
+            const wave =
+                Math.sin(
+                    performance.now() * .005 +
+                    i
+                ) * 5;
+
+            ctx.fillRect(
+                x + i,
+                455 + wave,
+                25,
+                8
+            );
+        }
+    }
+
+
+    /*
+        Final volcano lava
+    */
+
+    if (
+        level === 5 &&
+        lavaLevel !== null
+    ) {
+
+        ctx.fillStyle = "#ff3b0a";
+
+        ctx.fillRect(
+            0,
+            lavaLevel,
+            WIDTH,
+            HEIGHT - lavaLevel
+        );
+
+
+        ctx.fillStyle = "#ff9d00";
+
+        for (
+            let x = 0;
+            x < WIDTH;
+            x += 35
+        ) {
+
+            const wave =
+                Math.sin(
+                    performance.now() * .006 +
+                    x
+                ) * 7;
+
+            ctx.fillRect(
+                x,
+                lavaLevel + wave,
+                25,
+                9
+            );
+        }
     }
 }
 
 
-/* =========================
-   DRAW BONE
-========================= */
+/* =========================================================
+   BONE DRAWING
+========================================================= */
 
-function drawBone(bone) {
-
-    if (bone.collected) return;
-
-    const x = bone.x - cameraX;
-
-    const y =
-        bone.y +
-        Math.sin(bone.bob) * 5;
-
+function drawBoneShape(
+    x,
+    y,
+    rotation,
+    scale = 1
+) {
 
     ctx.save();
 
     ctx.translate(x, y);
 
-    ctx.rotate(
-        Math.sin(bone.bob) * 0.25
-    );
+    ctx.rotate(rotation);
+
+    ctx.scale(scale, scale);
 
 
     ctx.fillStyle = "#fff0a8";
 
-    ctx.fillRect(-4, -13, 8, 26);
 
-    ctx.fillRect(-12, -13, 8, 8);
-    ctx.fillRect(4, 5, 8, 8);
+    /*
+        Much more recognizable bone shape.
+    */
 
-    ctx.fillRect(-12, 5, 8, 8);
-    ctx.fillRect(4, -13, 8, 8);
+    ctx.fillRect(
+        -4,
+        -18,
+        8,
+        36
+    );
+
+
+    ctx.fillRect(
+        -11,
+        -18,
+        9,
+        8
+    );
+
+    ctx.fillRect(
+        2,
+        -18,
+        9,
+        8
+    );
+
+
+    ctx.fillRect(
+        -11,
+        10,
+        9,
+        8
+    );
+
+    ctx.fillRect(
+        2,
+        10,
+        9,
+        8
+    );
+
+
+    /*
+        Highlight
+    */
+
+    ctx.fillStyle = "#fffbd8";
+
+    ctx.fillRect(
+        -2,
+        -15,
+        3,
+        25
+    );
+
 
     ctx.restore();
 }
 
 
-/* =========================
-   DRAW ENEMY
-========================= */
+function drawBone(bone) {
+
+    if (bone.collected) {
+        return;
+    }
+
+
+    const x =
+        bone.x - cameraX;
+
+    const y =
+        bone.y +
+        Math.sin(bone.bob) * 6;
+
+
+    drawBoneShape(
+        x,
+        y,
+        Math.sin(bone.spin) * .2,
+        0.75
+    );
+}
+
+
+/* =========================================================
+   DROPPED BONES
+========================================================= */
+
+function drawDroppedBones() {
+
+    for (const bone of droppedBones) {
+
+        const x =
+            bone.x - cameraX;
+
+
+        /*
+            Glow makes the dropped bone
+            extremely obvious.
+        */
+
+        ctx.save();
+
+        ctx.globalAlpha =
+            0.25 +
+            Math.sin(
+                performance.now() * .01
+            ) * .1;
+
+        ctx.fillStyle = "#fff36b";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            x,
+            bone.y,
+            25,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+        ctx.restore();
+
+
+        drawBoneShape(
+            x,
+            bone.y,
+            bone.rotation,
+            0.9
+        );
+    }
+}
+
+
+/* =========================================================
+   ENEMY
+========================================================= */
 
 function drawEnemy(enemy) {
 
-    if (!enemy.alive) return;
+    if (!enemy.alive) {
+        return;
+    }
 
-    const x = enemy.x - cameraX;
+
+    const x =
+        enemy.x - cameraX;
+
 
     ctx.save();
 
@@ -949,29 +1762,33 @@ function drawEnemy(enemy) {
     );
 
 
-    // Body
+    const big =
+        enemy.type === "big";
 
-    ctx.fillStyle = "#b94e43";
+
+    ctx.fillStyle =
+        enemy.type === "fast"
+        ? "#bd55a5"
+        : enemy.type === "big"
+        ? "#7c5ac7"
+        : "#b94e43";
+
 
     ctx.fillRect(
         -18,
         -10,
-        30,
+        big ? 40 : 30,
         25
     );
 
 
-    // Head
-
     ctx.fillRect(
         5,
         -20,
-        20,
+        big ? 25 : 20,
         20
     );
 
-
-    // Tail
 
     ctx.fillRect(
         -28,
@@ -981,30 +1798,29 @@ function drawEnemy(enemy) {
     );
 
 
-    // Eye
-
     ctx.fillStyle = "#fff";
 
     ctx.fillRect(
         17,
         -16,
-        5,
-        5
+        6,
+        6
     );
+
 
     ctx.fillStyle = "#111";
 
     ctx.fillRect(
         19,
         -16,
-        3,
-        5
+        4,
+        6
     );
 
 
-    // Feet
+    ctx.fillStyle =
+        "#7f3834";
 
-    ctx.fillStyle = "#7f3834";
 
     ctx.fillRect(
         -12,
@@ -1012,6 +1828,7 @@ function drawEnemy(enemy) {
         8,
         10
     );
+
 
     ctx.fillRect(
         10,
@@ -1025,22 +1842,27 @@ function drawEnemy(enemy) {
 }
 
 
-/* =========================
-   DRAW PLAYER
-========================= */
+/* =========================================================
+   PLAYER
+========================================================= */
 
 function drawPlayer() {
 
     if (
         player.invincible > 0 &&
-        Math.floor(player.invincible / 5) % 2 === 0
+        Math.floor(
+            player.invincible / 5
+        ) % 2 === 0
     ) {
         return;
     }
 
 
-    const x = player.x - cameraX;
-    const y = player.y;
+    const x =
+        player.x - cameraX;
+
+    const y =
+        player.y;
 
 
     ctx.save();
@@ -1050,14 +1872,15 @@ function drawPlayer() {
         y + player.height / 2
     );
 
+
     if (player.facing < 0) {
         ctx.scale(-1, 1);
     }
 
 
-    // Tail
-
     ctx.fillStyle = "#438d4b";
+
+    // Tail
 
     ctx.fillRect(
         -27,
@@ -1187,14 +2010,15 @@ function drawPlayer() {
 }
 
 
-/* =========================
-   DRAW FLAG
-========================= */
+/* =========================================================
+   FLAG
+========================================================= */
 
 function drawFlag() {
 
     const x =
         flag.x - cameraX;
+
 
     ctx.fillStyle = "#6b4631";
 
@@ -1210,23 +2034,38 @@ function drawFlag() {
 
     ctx.beginPath();
 
-    ctx.moveTo(x + 8, flag.y);
-    ctx.lineTo(x + 70, flag.y + 25);
-    ctx.lineTo(x + 8, flag.y + 50);
+    ctx.moveTo(
+        x + 8,
+        flag.y
+    );
+
+    ctx.lineTo(
+        x + 70,
+        flag.y + 25
+    );
+
+    ctx.lineTo(
+        x + 8,
+        flag.y + 50
+    );
 
     ctx.fill();
 }
 
 
-/* =========================
-   DRAW PARTICLES
-========================= */
+/* =========================================================
+   PARTICLES
+========================================================= */
 
 function drawParticles() {
 
-    ctx.fillStyle = "#fff36b";
-
     for (const p of particles) {
+
+        ctx.fillStyle =
+            level === 5
+            ? "#ff7b19"
+            : "#fff36b";
+
 
         ctx.fillRect(
             p.x - cameraX,
@@ -1238,35 +2077,33 @@ function drawParticles() {
 }
 
 
-/* =========================
-   DRAW
-========================= */
+/* =========================================================
+   DRAW EVERYTHING
+========================================================= */
 
 function draw() {
 
     drawBackground();
 
 
-    // Platforms
-
     for (const p of platforms) {
         drawPlatform(p);
     }
 
 
-    // Flag
+    drawLava();
+
 
     drawFlag();
 
-
-    // Bones
 
     for (const bone of collectibles) {
         drawBone(bone);
     }
 
 
-    // Enemies
+    drawDroppedBones();
+
 
     for (const enemy of enemies) {
         drawEnemy(enemy);
@@ -1279,9 +2116,9 @@ function draw() {
 }
 
 
-/* =========================
+/* =========================================================
    HUD
-========================= */
+========================================================= */
 
 function updateHUD() {
 
@@ -1293,12 +2130,194 @@ function updateHUD() {
 
     document.getElementById("score")
         .textContent = score;
+
+    document.getElementById("world")
+        .textContent = level + "-1";
 }
 
 
-/* =========================
+/* =========================================================
+   START LEVEL
+========================================================= */
+
+function startLevel() {
+
+    createLevel(level);
+
+    player.x = 120;
+    player.y = 300;
+
+    player.vx = 0;
+    player.vy = 0;
+
+    player.invincible = 90;
+
+    running = true;
+
+    updateHUD();
+}
+
+
+/* =========================================================
+   VOLCANO CUTSCENE
+========================================================= */
+
+let cutsceneTimer = null;
+
+function startVolcanoCutscene() {
+
+    const cutscene =
+        document.getElementById("cutscene");
+
+    const text =
+        document.getElementById("cutsceneText");
+
+    cutscene.style.display = "flex";
+
+    const scenes = [
+
+        "DINO:<br><br>Finally...<br>I made it out of the mountains.",
+
+        "The ground begins to shake.",
+
+        "BOOOOOOM!",
+
+        "DINO:<br><br>Uh oh.",
+
+        "A massive volcano erupts in the distance.",
+
+        "DINO:<br><br>RUN!!!"
+    ];
+
+
+    let index = 0;
+
+
+    function nextScene() {
+
+        if (index >= scenes.length) {
+
+            cutscene.style.display = "none";
+
+            level = 5;
+
+            startLevel();
+
+            return;
+        }
+
+
+        text.innerHTML =
+            scenes[index];
+
+        index++;
+
+        cutsceneTimer =
+            setTimeout(
+                nextScene,
+                1700
+            );
+    }
+
+
+    nextScene();
+}
+
+
+/* =========================================================
+   CUTSCENE SKIP
+========================================================= */
+
+document.getElementById("skip")
+    .addEventListener(
+        "click",
+        () => {
+
+            clearTimeout(cutsceneTimer);
+
+            document.getElementById(
+                "cutscene"
+            ).style.display = "none";
+
+            level = 5;
+
+            startLevel();
+        }
+    );
+
+
+/* =========================================================
+   MENU
+========================================================= */
+
+function showMessage(
+    title,
+    text,
+    buttonText
+) {
+
+    const message =
+        document.getElementById(
+            "message"
+        );
+
+
+    message.querySelector("h1")
+        .textContent = title;
+
+
+    message.querySelector("p")
+        .innerHTML = text;
+
+
+    document.getElementById("start")
+        .textContent = buttonText;
+
+
+    message.style.display =
+        "flex";
+}
+
+
+function startGame() {
+
+    level = 1;
+
+    score = 0;
+    bones = 0;
+    lives = 3;
+
+    player.x = 120;
+    player.y = 300;
+
+    player.vx = 0;
+    player.vy = 0;
+
+    player.invincible = 0;
+
+    createLevel(1);
+
+    gameOver = false;
+
+    running = true;
+
+    document.getElementById("message")
+        .style.display = "none";
+
+    updateHUD();
+}
+
+
+document.getElementById("start")
+    .addEventListener(
+        "click",
+        startGame
+    );
+
+
+/* =========================================================
    GAME LOOP
-========================= */
+========================================================= */
 
 function gameLoop(time) {
 
@@ -1314,10 +2333,19 @@ function gameLoop(time) {
     if (running) {
 
         updatePlayer();
+
         updateEnemies();
+
         updateCollectibles();
+
+        updateDroppedBones();
+
         updateParticles();
+
+        updateVolcano();
+
         updateCamera();
+
         checkFlag();
 
         updateHUD();
@@ -1326,73 +2354,24 @@ function gameLoop(time) {
 
     draw();
 
-    requestAnimationFrame(gameLoop);
+
+    requestAnimationFrame(
+        gameLoop
+    );
 }
 
 
-/* =========================
-   START / MENU
-========================= */
+/* =========================================================
+   INIT
+========================================================= */
 
-function startGame() {
+createLevel(1);
 
-    score = 0;
-    bones = 0;
-    lives = 3;
+updateHUD();
 
-    cameraX = 0;
-
-    player.x = 120;
-    player.y = 300;
-
-    player.vx = 0;
-    player.vy = 0;
-
-    player.invincible = 0;
-
-    particles = [];
-
-    createLevel();
-
-    gameOver = false;
-    running = true;
-
-    document.getElementById("message")
-        .style.display = "none";
-
-    updateHUD();
-}
-
-
-function showMessage(title, text, buttonText) {
-
-    const message =
-        document.getElementById("message");
-
-    message.querySelector("h1")
-        .textContent = title;
-
-    message.querySelector("p")
-        .innerHTML = text;
-
-    document.getElementById("start")
-        .textContent = buttonText;
-
-    message.style.display = "flex";
-}
-
-
-document.getElementById("start")
-    .addEventListener("click", startGame);
-
-
-/* =========================
-   START LOOP
-========================= */
-
-createLevel();
-
-requestAnimationFrame(gameLoop);
+requestAnimationFrame(
+    gameLoop
+);
 
 </script>
 
