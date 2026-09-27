@@ -785,13 +785,12 @@ function updatePlayer() {
     for (const lava of lavaPools) {
 
         if (
-            player.x + player.width > lava.x &&
-            player.x < lava.x + lava.width &&
-            player.y + player.height > 450
-        ) {
-
-            loseLife();
-        }
+    player.x + player.width - 4 > lava.x &&
+    player.x + 4 < lava.x + lava.width &&
+    player.y + player.height > 450
+) {
+    loseLife();
+}
     }
 
 
