@@ -65,7 +65,9 @@ canvas {
     text-align: center;
     z-index: 10;
 }
-
+<div id="levelIntro">
+    <div id="levelIntroText">LEVEL 1</div>
+</div>
 #message h1 {
     font-size: 55px;
     color: #fff36b;
@@ -122,6 +124,26 @@ button:hover {
     font-size: 14px;
     background: #333;
     border-color: #777;
+}
+#levelIntro {
+    position: absolute;
+    inset: 0;
+    background: #000;
+    color: white;
+    z-index: 15;
+
+    display: none;
+    align-items: center;
+    justify-content: center;
+
+    font-family: monospace;
+}
+
+#levelIntroText {
+    font-size: 64px;
+    font-weight: bold;
+    letter-spacing: 5px;
+    text-shadow: 5px 5px #333;
 }
 </style>
 </head>
@@ -2152,9 +2174,29 @@ function startLevel() {
 
     player.invincible = 90;
 
-    running = true;
+    // Pause the game during the level intro
+    running = false;
+
+    const intro =
+        document.getElementById("levelIntro");
+
+    const introText =
+        document.getElementById("levelIntroText");
+
+    introText.textContent =
+        "LEVEL " + level;
+
+    intro.style.display = "flex";
 
     updateHUD();
+
+    setTimeout(function() {
+
+        intro.style.display = "none";
+
+        running = true;
+
+    }, 1500);
 }
 
 
@@ -2295,16 +2337,12 @@ function startGame() {
 
     player.invincible = 0;
 
-    createLevel(1);
-
     gameOver = false;
-
-    running = true;
 
     document.getElementById("message")
         .style.display = "none";
 
-    updateHUD();
+    startLevel();
 }
 
 
