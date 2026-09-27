@@ -785,8 +785,8 @@ function updatePlayer() {
     for (const lava of lavaPools) {
 
         if (
-    player.x + player.width - 20 > lava.x &&
-    player.x + 20 < lava.x + lava.width &&
+    player.x + player.width > lava.x &&
+    player.x < lava.x + lava.width &&
     player.y + player.height > 450
 ) {
     loseLife();
@@ -1529,7 +1529,7 @@ function drawLava() {
         ctx.fillRect(
             x,
             455,
-            lava.width,
+            lava.width - 6,
             85
         );
 
@@ -1538,7 +1538,7 @@ function drawLava() {
 
         for (
             let i = 0;
-            i < lava.width;
+            i < lava.width - 6;
             i += 35
         ) {
 
