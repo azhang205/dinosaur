@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dino Dash</title>
+
+<style>
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background: #111;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: monospace;
+    overflow: hidden;
+}
+
+#game {
+    position: relative;
+    width: 960px;
+    height: 540px;
+    max-width: 100vw;
+    max-height: 100vh;
+    overflow: hidden;
+    background: #75c9ed;
+    image-rendering: pixelated;
+}
+
+canvas {
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+}
+
+#hud {
+    position: absolute;
+    top: 15px;
+    left: 20px;
+    right: 20px;
+    display: flex;
+    justify-content: space-between;
+    color: white;
+    font-size: 20px;
+    font-weight: bold;
+    text-shadow: 3px 3px #263238;
+    pointer-events: none;
+}
+
+#message {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    color: white;
+    background: rgba(10, 20, 25, .75);
+    text-align: center;
+    z-index: 5;
+}
+
+#message h1 {
+    font-size: 55px;
+    color: #fff36b;
+    text-shadow: 5px 5px #493c30;
+    margin-bottom: 15px;
+}
+
+#message p {
+    font-size: 18px;
+    line-height: 1.8;
+}
+
+button {
+    margin-top: 20px;
+    padding: 12px 30px;
+    font-family: monospace;
+    font-size: 20px;
+    font-weight: bold;
+    color: #fff;
+    background: #e65b45;
+    border: 4px solid #542d29;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #f47b5f;
+}
+</style>
+</head>
+
+<body>
+
+<div id="game">
+
+<canvas id="canvas" width="960" height="540"></canvas>
+
+<div id="hud">
+    <span>❤️ <span id="lives">3</span></span>
+    <span>🦴 <span id="bones">0</span></span>
+    <span>⭐ <span id="score">0</span></span>
+    <span>WORLD <span id="world">1-1</span></span>
+</div>
+
+<div id="message">
+    <h1>DINO DASH</h1>
+    <p>
+        ← → / A D &nbsp; MOVE<br>
+        SPACE / W / ↑ &nbsp; JUMP<br>
+        Collect bones. Avoid enemies. Reach the flag!
+    </p>
+    <button id="start">START GAME</button>
+</div>
+
+</div>
+
+<script>
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const WIDTH = canvas.width;
+const HEIGHT = canvas.height;
+
+ctx.imageSmoothingEnabled = false;
+
+
+/* =========================
+   GAME STATE
+========================= */
+
+let running = false;
+let gameOver = false;
+
+let cameraX = 0;
+
+let score = 0;
+let bones = 0;
+let lives = 3;
+
+let keys = {};
+
+let levelWidth = 7000;
+
+let lastTime = 0;
+
+
+/* =========================
+   PLAYER
+========================= */
+
+const player = {
+    x: 120,
+    y: 300,
+
+    width: 42,
+    height: 52,
+
+    vx: 0,
+    vy: 0,
+
+    speed: 4.5,
+    jump: -12,
+
+    grounded: false,
+
+    facing: 1,
+
+    invincible: 0,
+
+    anim: 0
+};
+
+
+/* =========================
+   LEVEL
+========================= */
+
+let platforms = [];
+let enemies = [];
+let collectibles = [];
+let particles = [];
+
+let flag = {
+    x: 6700,
+    y: 270
+};
+
+
+/* =========================
+   INPUT
+========================= */
+
+window.addEventListener("keydown", e => {
+
+    keys[e.key.toLowerCase()] = true;
+
+    if (
+        e.key === " " ||
+        e.key === "ArrowUp" ||
+        e.key.toLowerCase() === "w"
+    ) {
+        e.preventDefault();
+    }
+
+});
+
+window.addEventListener("keyup", e => {
+    keys[e.key.toLowerCase()] = false;
+});
+
+
+/* =========================
+   LEVEL GENERATION
+========================= */
+
+function createLevel() {
+
+    platforms = [];
+    enemies = [];
+    collectibles = [];
+
+    // Ground sections
+
+    platforms.push({
+        x: 0,
+        y: 460,
+        width: 850,
+        height: 80
+    });
+
+    platforms.push({
+        x: 950,
+        y: 460,
+        width: 800,
+        height: 80
+    });
+
+    platforms.push({
+        x: 1850,
+        y: 460,
+        width: 1100,
+        height: 80
+    });
+
+    platforms.push({
+        x: 3050,
+        y: 460,
+        width: 900,
+        height: 80
+    });
+
+    platforms.push({
+        x: 4050,
+        y: 460,
+        width: 1000,
+        height: 80
+    });
+
+    platforms.push({
+        x: 5150,
+        y: 460,
+        width: 1700,
+        height: 80
+    });
+
+
+    // Floating platforms
+
+    addPlatform(500, 350, 160, 25);
+    addPlatform(720, 290, 130, 25);
+
+    addPlatform(1100, 350, 150, 25);
+    addPlatform(1350, 280, 140, 25);
+    addPlatform(1600, 350, 120, 25);
+
+    addPlatform(2000, 350, 180, 25);
+    addPlatform(2300, 290, 150, 25);
+    addPlatform(2600, 350, 150, 25);
+
+    addPlatform(3200, 340, 170, 25);
+    addPlatform(3500, 270, 140, 25);
+
+    addPlatform(4250, 350, 170, 25);
+    addPlatform(4550, 280, 140, 25);
+
+    addPlatform(5350, 350, 160, 25);
+    addPlatform(5650, 280, 140, 25);
+    addPlatform(6000, 340, 170, 25);
+
+    addPlatform(6350, 270, 150, 25);
+
+
+    // Enemies
+
+    addEnemy(620, 415, 620);
+    addEnemy(1200, 415, 1200);
+    addEnemy(1450, 415, 1450);
+    addEnemy(2150, 415, 2150);
+    addEnemy(2750, 415, 2750);
+    addEnemy(3300, 415, 3300);
+    addEnemy(3700, 415, 3700);
+    addEnemy(4400, 415, 4400);
+    addEnemy(4900, 415, 4900);
+    addEnemy(5500, 415, 5500);
+    addEnemy(6100, 415, 6100);
+
+
+    // Bones
+
+    const bonePositions = [
+        [350, 410],
+        [550, 315],
+        [770, 255],
+
+        [1050, 410],
+        [1170, 315],
+        [1420, 245],
+        [1630, 315],
+
+        [1950, 410],
+        [2070, 315],
+        [2370, 255],
+        [2660, 315],
+
+        [3250, 305],
+        [3530, 235],
+        [3800, 410],
+
+        [4200, 410],
+        [4300, 315],
+        [4580, 245],
+
+        [5300, 410],
+        [5400, 315],
+        [5700, 245],
+        [6050, 305],
+        [6400, 235],
+        [6600, 410]
+    ];
+
+    for (const [x, y] of bonePositions) {
+        collectibles.push({
+            x,
+            y,
+            collected: false,
+            bob: Math.random() * Math.PI * 2
+        });
+    }
+}
+
+
+function addPlatform(x, y, width, height) {
+
+    platforms.push({
+        x,
+        y,
+        width,
+        height
+    });
+}
+
+
+function addEnemy(x, y, home) {
+
+    enemies.push({
+        x,
+        y,
+        width: 40,
+        height: 40,
+
+        vx: 1.2,
+
+        left: home - 100,
+        right: home + 100,
+
+        alive: true,
+
+        anim: Math.random() * 10
+    });
+}
+
+
+/* =========================
+   COLLISION
+========================= */
+
+function collision(a, b) {
+
+    return (
+        a.x < b.x + b.width &&
+        a.x + a.width > b.x &&
+        a.y < b.y + b.height &&
+        a.y + a.height > b.y
+    );
+}
+
+
+/* =========================
+   PLAYER UPDATE
+========================= */
+
+function updatePlayer() {
+
+    let moving = false;
+
+    if (keys["arrowleft"] || keys["a"]) {
+
+        player.vx = -player.speed;
+        player.facing = -1;
+        moving = true;
+
+    } else if (keys["arrowright"] || keys["d"]) {
+
+        player.vx = player.speed;
+        player.facing = 1;
+        moving = true;
+
+    } else {
+
+        player.vx *= 0.75;
+    }
+
+
+    if (
+        (keys[" "] ||
+        keys["arrowup"] ||
+        keys["w"]) &&
+        player.grounded
+    ) {
+
+        player.vy = player.jump;
+        player.grounded = false;
+
+    }
+
+
+    player.vy += 0.55;
+
+    player.x += player.vx;
+    player.y += player.vy;
+
+    player.grounded = false;
+
+
+    // Platform collision
+
+    for (const p of platforms) {
+
+        if (
+            player.x + player.width > p.x &&
+            player.x < p.x + p.width &&
+            player.y + player.height >= p.y &&
+            player.y + player.height <= p.y + 20 &&
+            player.vy >= 0
+        ) {
+
+            player.y =
+                p.y - player.height;
+
+            player.vy = 0;
+
+            player.grounded = true;
+        }
+    }
+
+
+    // World boundaries
+
+    if (player.x < 0) {
+        player.x = 0;
+    }
+
+
+    // Fell off map
+
+    if (player.y > HEIGHT + 100) {
+
+        loseLife();
+    }
+
+
+    if (player.invincible > 0) {
+        player.invincible--;
+    }
+
+
+    if (moving) {
+        player.anim += 0.25;
+    }
+}
+
+
+/* =========================
+   ENEMIES
+========================= */
+
+function updateEnemies() {
+
+    for (const enemy of enemies) {
+
+        if (!enemy.alive) continue;
+
+        enemy.x += enemy.vx;
+
+        if (
+            enemy.x < enemy.left ||
+            enemy.x > enemy.right
+        ) {
+
+            enemy.vx *= -1;
+        }
+
+        enemy.anim += 0.15;
+
+
+        if (
+            player.invincible <= 0 &&
+            collision(player, enemy)
+        ) {
+
+            // Jumping on enemy
+
+            if (
+                player.vy > 0 &&
+                player.y + player.height - 10 < enemy.y + 15
+            ) {
+
+                enemy.alive = false;
+
+                player.vy = -8;
+
+                score += 250;
+
+                spawnParticles(
+                    enemy.x + 20,
+                    enemy.y + 20,
+                    15
+                );
+
+            } else {
+
+                loseLife();
+            }
+        }
+    }
+}
+
+
+/* =========================
+   COLLECTIBLES
+========================= */
+
+function updateCollectibles() {
+
+    for (const bone of collectibles) {
+
+        if (bone.collected) continue;
+
+        bone.bob += 0.08;
+
+        const hitbox = {
+            x: bone.x - 12,
+            y: bone.y - 12,
+            width: 24,
+            height: 24
+        };
+
+        if (collision(player, hitbox)) {
+
+            bone.collected = true;
+
+            bones++;
+            score += 100;
+
+            spawnParticles(
+                bone.x,
+                bone.y,
+                10
+            );
+        }
+    }
+}
+
+
+/* =========================
+   CAMERA
+========================= */
+
+function updateCamera() {
+
+    const target =
+        player.x - WIDTH * 0.35;
+
+    cameraX +=
+        (target - cameraX) * 0.08;
+
+    cameraX =
+        Math.max(
+            0,
+            Math.min(
+                cameraX,
+                levelWidth - WIDTH
+            )
+        );
+}
+
+
+/* =========================
+   DAMAGE
+========================= */
+
+function loseLife() {
+
+    if (player.invincible > 0) return;
+
+    lives--;
+
+    updateHUD();
+
+    if (lives <= 0) {
+
+        gameOver = true;
+        running = false;
+
+        showMessage(
+            "GAME OVER",
+            "Score: " + score +
+            "<br>Bones: " + bones,
+            "TRY AGAIN"
+        );
+
+        return;
+    }
+
+
+    player.x =
+        Math.max(100, player.x - 250);
+
+    player.y = 300;
+
+    player.vx = 0;
+    player.vy = 0;
+
+    player.invincible = 120;
+}
+
+
+/* =========================
+   FLAG
+========================= */
+
+function checkFlag() {
+
+    const goal = {
+        x: flag.x,
+        y: flag.y,
+        width: 50,
+        height: 190
+    };
+
+    if (collision(player, goal)) {
+
+        score += 1000;
+
+        running = false;
+
+        showMessage(
+            "LEVEL COMPLETE!",
+            "Score: " +
+            score +
+            "<br>Bones: " +
+            bones,
+            "PLAY AGAIN"
+        );
+    }
+}
+
+
+/* =========================
+   PARTICLES
+========================= */
+
+function spawnParticles(x, y, amount) {
+
+    for (let i = 0; i < amount; i++) {
+
+        particles.push({
+            x,
+            y,
+
+            vx:
+                Math.random() * 6 - 3,
+
+            vy:
+                Math.random() * -6 - 1,
+
+            life: 30 + Math.random() * 20,
+
+            size:
+                3 + Math.random() * 5
+        });
+    }
+}
+
+
+function updateParticles() {
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+
+        const p = particles[i];
+
+        p.x += p.vx;
+        p.y += p.vy;
+
+        p.vy += 0.2;
+
+        p.life--;
+
+        if (p.life <= 0) {
+            particles.splice(i, 1);
+        }
+    }
+}
+
+
+/* =========================
+   DRAW BACKGROUND
+========================= */
+
+function drawBackground() {
+
+    // Sky
+
+    ctx.fillStyle = "#75c9ed";
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+
+    // Sun
+
+    ctx.fillStyle = "#fff18a";
+
+    ctx.beginPath();
+    ctx.arc(
+        770,
+        90,
+        45,
+        0,
+        Math.PI * 2
+    );
+    ctx.fill();
+
+
+    // Far mountains
+
+    ctx.fillStyle = "#77a9a0";
+
+    for (let x = -500; x < levelWidth; x += 500) {
+
+        ctx.beginPath();
+
+        ctx.moveTo(
+            x - cameraX * 0.15,
+            390
+        );
+
+        ctx.lineTo(
+            x + 250 - cameraX * 0.15,
+            180
+        );
+
+        ctx.lineTo(
+            x + 500 - cameraX * 0.15,
+            390
+        );
+
+        ctx.fill();
+    }
+
+
+    // Clouds
+
+    ctx.fillStyle = "rgba(255,255,255,.75)";
+
+    for (let i = 0; i < 12; i++) {
+
+        let x =
+            i * 700 -
+            (cameraX * 0.25 % 700);
+
+        let y =
+            70 +
+            (i % 3) * 55;
+
+        ctx.fillRect(
+            x,
+            y,
+            100,
+            20
+        );
+
+        ctx.fillRect(
+            x + 25,
+            y - 15,
+            50,
+            35
+        );
+    }
+}
+
+
+/* =========================
+   DRAW PLATFORM
+========================= */
+
+function drawPlatform(p) {
+
+    const x = p.x - cameraX;
+
+    if (
+        x + p.width < 0 ||
+        x > WIDTH
+    ) return;
+
+
+    // Dirt
+
+    ctx.fillStyle = "#8b542f";
+
+    ctx.fillRect(
+        x,
+        p.y,
+        p.width,
+        p.height
+    );
+
+
+    // Grass
+
+    ctx.fillStyle = "#4e9b45";
+
+    ctx.fillRect(
+        x,
+        p.y,
+        p.width,
+        12
+    );
+
+
+    // Grass pixels
+
+    ctx.fillStyle = "#79c34d";
+
+    for (
+        let i = 0;
+        i < p.width;
+        i += 20
+    ) {
+
+        ctx.fillRect(
+            x + i,
+            p.y,
+            10,
+            5
+        );
+    }
+
+
+    // Dirt pixels
+
+    ctx.fillStyle = "#633d28";
+
+    for (
+        let i = 10;
+        i < p.width;
+        i += 35
+    ) {
+
+        ctx.fillRect(
+            x + i,
+            p.y + 30,
+            8,
+            8
+        );
+    }
+}
+
+
+/* =========================
+   DRAW BONE
+========================= */
+
+function drawBone(bone) {
+
+    if (bone.collected) return;
+
+    const x = bone.x - cameraX;
+
+    const y =
+        bone.y +
+        Math.sin(bone.bob) * 5;
+
+
+    ctx.save();
+
+    ctx.translate(x, y);
+
+    ctx.rotate(
+        Math.sin(bone.bob) * 0.25
+    );
+
+
+    ctx.fillStyle = "#fff0a8";
+
+    ctx.fillRect(-4, -13, 8, 26);
+
+    ctx.fillRect(-12, -13, 8, 8);
+    ctx.fillRect(4, 5, 8, 8);
+
+    ctx.fillRect(-12, 5, 8, 8);
+    ctx.fillRect(4, -13, 8, 8);
+
+    ctx.restore();
+}
+
+
+/* =========================
+   DRAW ENEMY
+========================= */
+
+function drawEnemy(enemy) {
+
+    if (!enemy.alive) return;
+
+    const x = enemy.x - cameraX;
+
+    ctx.save();
+
+    ctx.translate(
+        x + enemy.width / 2,
+        enemy.y + enemy.height / 2
+    );
+
+
+    // Body
+
+    ctx.fillStyle = "#b94e43";
+
+    ctx.fillRect(
+        -18,
+        -10,
+        30,
+        25
+    );
+
+
+    // Head
+
+    ctx.fillRect(
+        5,
+        -20,
+        20,
+        20
+    );
+
+
+    // Tail
+
+    ctx.fillRect(
+        -28,
+        -5,
+        12,
+        10
+    );
+
+
+    // Eye
+
+    ctx.fillStyle = "#fff";
+
+    ctx.fillRect(
+        17,
+        -16,
+        5,
+        5
+    );
+
+    ctx.fillStyle = "#111";
+
+    ctx.fillRect(
+        19,
+        -16,
+        3,
+        5
+    );
+
+
+    // Feet
+
+    ctx.fillStyle = "#7f3834";
+
+    ctx.fillRect(
+        -12,
+        13,
+        8,
+        10
+    );
+
+    ctx.fillRect(
+        10,
+        13,
+        8,
+        10
+    );
+
+
+    ctx.restore();
+}
+
+
+/* =========================
+   DRAW PLAYER
+========================= */
+
+function drawPlayer() {
+
+    if (
+        player.invincible > 0 &&
+        Math.floor(player.invincible / 5) % 2 === 0
+    ) {
+        return;
+    }
+
+
+    const x = player.x - cameraX;
+    const y = player.y;
+
+
+    ctx.save();
+
+    ctx.translate(
+        x + player.width / 2,
+        y + player.height / 2
+    );
+
+    if (player.facing < 0) {
+        ctx.scale(-1, 1);
+    }
+
+
+    // Tail
+
+    ctx.fillStyle = "#438d4b";
+
+    ctx.fillRect(
+        -27,
+        2,
+        20,
+        12
+    );
+
+    ctx.fillRect(
+        -35,
+        -3,
+        15,
+        10
+    );
+
+
+    // Body
+
+    ctx.fillStyle = "#55a957";
+
+    ctx.fillRect(
+        -15,
+        -8,
+        32,
+        30
+    );
+
+
+    // Belly
+
+    ctx.fillStyle = "#a6c96b";
+
+    ctx.fillRect(
+        -5,
+        -2,
+        18,
+        25
+    );
+
+
+    // Neck
+
+    ctx.fillStyle = "#55a957";
+
+    ctx.fillRect(
+        8,
+        -25,
+        15,
+        25
+    );
+
+
+    // Head
+
+    ctx.fillRect(
+        12,
+        -32,
+        30,
+        23
+    );
+
+
+    // Snout
+
+    ctx.fillRect(
+        32,
+        -25,
+        15,
+        13
+    );
+
+
+    // Eye
+
+    ctx.fillStyle = "#fff";
+
+    ctx.fillRect(
+        30,
+        -27,
+        7,
+        7
+    );
+
+    ctx.fillStyle = "#111";
+
+    ctx.fillRect(
+        33,
+        -27,
+        4,
+        7
+    );
+
+
+    // Arm
+
+    ctx.fillStyle = "#438d4b";
+
+    ctx.fillRect(
+        16,
+        -3,
+        8,
+        17
+    );
+
+
+    // Legs
+
+    const leg =
+        Math.sin(player.anim) * 5;
+
+    ctx.fillRect(
+        -9,
+        17,
+        10,
+        18 + leg
+    );
+
+    ctx.fillRect(
+        10,
+        17,
+        10,
+        18 - leg
+    );
+
+
+    ctx.restore();
+}
+
+
+/* =========================
+   DRAW FLAG
+========================= */
+
+function drawFlag() {
+
+    const x =
+        flag.x - cameraX;
+
+    ctx.fillStyle = "#6b4631";
+
+    ctx.fillRect(
+        x,
+        flag.y,
+        8,
+        190
+    );
+
+
+    ctx.fillStyle = "#e94e4e";
+
+    ctx.beginPath();
+
+    ctx.moveTo(x + 8, flag.y);
+    ctx.lineTo(x + 70, flag.y + 25);
+    ctx.lineTo(x + 8, flag.y + 50);
+
+    ctx.fill();
+}
+
+
+/* =========================
+   DRAW PARTICLES
+========================= */
+
+function drawParticles() {
+
+    ctx.fillStyle = "#fff36b";
+
+    for (const p of particles) {
+
+        ctx.fillRect(
+            p.x - cameraX,
+            p.y,
+            p.size,
+            p.size
+        );
+    }
+}
+
+
+/* =========================
+   DRAW
+========================= */
+
+function draw() {
+
+    drawBackground();
+
+
+    // Platforms
+
+    for (const p of platforms) {
+        drawPlatform(p);
+    }
+
+
+    // Flag
+
+    drawFlag();
+
+
+    // Bones
+
+    for (const bone of collectibles) {
+        drawBone(bone);
+    }
+
+
+    // Enemies
+
+    for (const enemy of enemies) {
+        drawEnemy(enemy);
+    }
+
+
+    drawParticles();
+
+    drawPlayer();
+}
+
+
+/* =========================
+   HUD
+========================= */
+
+function updateHUD() {
+
+    document.getElementById("lives")
+        .textContent = lives;
+
+    document.getElementById("bones")
+        .textContent = bones;
+
+    document.getElementById("score")
+        .textContent = score;
+}
+
+
+/* =========================
+   GAME LOOP
+========================= */
+
+function gameLoop(time) {
+
+    const delta =
+        Math.min(
+            (time - lastTime) / 16.67,
+            2
+        );
+
+    lastTime = time;
+
+
+    if (running) {
+
+        updatePlayer();
+        updateEnemies();
+        updateCollectibles();
+        updateParticles();
+        updateCamera();
+        checkFlag();
+
+        updateHUD();
+    }
+
+
+    draw();
+
+    requestAnimationFrame(gameLoop);
+}
+
+
+/* =========================
+   START / MENU
+========================= */
+
+function startGame() {
+
+    score = 0;
+    bones = 0;
+    lives = 3;
+
+    cameraX = 0;
+
+    player.x = 120;
+    player.y = 300;
+
+    player.vx = 0;
+    player.vy = 0;
+
+    player.invincible = 0;
+
+    particles = [];
+
+    createLevel();
+
+    gameOver = false;
+    running = true;
+
+    document.getElementById("message")
+        .style.display = "none";
+
+    updateHUD();
+}
+
+
+function showMessage(title, text, buttonText) {
+
+    const message =
+        document.getElementById("message");
+
+    message.querySelector("h1")
+        .textContent = title;
+
+    message.querySelector("p")
+        .innerHTML = text;
+
+    document.getElementById("start")
+        .textContent = buttonText;
+
+    message.style.display = "flex";
+}
+
+
+document.getElementById("start")
+    .addEventListener("click", startGame);
+
+
+/* =========================
+   START LOOP
+========================= */
+
+createLevel();
+
+requestAnimationFrame(gameLoop);
+
+</script>
+
+</body>
+</html>
