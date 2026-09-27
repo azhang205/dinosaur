@@ -459,67 +459,72 @@ function createLevel(number) {
 
     if (number === 2) {
 
-        levelWidth = 7600;
+    levelWidth = 7600;
 
-        addPlatform(0, 460, 700, 80);
-        addPlatform(850, 460, 500, 80);
-        addPlatform(1500, 460, 650, 80);
-        addPlatform(2300, 460, 500, 80);
-        addPlatform(3000, 460, 900, 80);
-        addPlatform(4050, 460, 450, 80);
-        addPlatform(4700, 460, 600, 80);
-        addPlatform(5500, 460, 2100, 80);
+    // Ground
+    addPlatform(0, 460, 700, 80);
+    addPlatform(800, 460, 550, 80);
+    addPlatform(1450, 460, 700, 80);
+    addPlatform(2250, 460, 550, 80);
+    addPlatform(2900, 460, 1000, 80);
+    addPlatform(4000, 460, 500, 80);
+    addPlatform(4600, 460, 700, 80);
+    addPlatform(5400, 460, 2200, 80);
 
-        addLava(700, 100);
-        addLava(1350, 100);
-        addLava(2150, 100);
-        addLava(2800, 150);
-        addLava(3900, 100);
-        addLava(4500, 150);
-        addLava(5300, 150);
+    // Lava — all 100 pixels wide
+    addLava(700, 100);
+    addLava(1350, 100);
+    addLava(2150, 100);
+    addLava(2800, 100);
+    addLava(3900, 100);
+    addLava(4500, 100);
+    addLava(5300, 100);
 
-        addPlatform(500, 350, 120, 25);
-        addPlatform(750, 300, 100, 25);
-        addPlatform(1100, 330, 120, 25);
+    // Floating platforms
+    addPlatform(500, 350, 120, 25);
+    addPlatform(750, 300, 100, 25);
+    addPlatform(1100, 330, 120, 25);
 
-        addPlatform(1600, 350, 150, 25);
-        addPlatform(1900, 280, 120, 25);
+    addPlatform(1600, 350, 150, 25);
+    addPlatform(1900, 280, 120, 25);
 
-        addPlatform(2350, 350, 130, 25);
-        addPlatform(2600, 280, 120, 25);
+    addPlatform(2350, 350, 130, 25);
+    addPlatform(2600, 280, 120, 25);
 
-        addPlatform(3150, 340, 150, 25);
-        addPlatform(3450, 280, 130, 25);
+    addPlatform(3150, 340, 150, 25);
+    addPlatform(3450, 280, 130, 25);
 
-        addPlatform(4150, 350, 130, 25);
-        addPlatform(4800, 340, 150, 25);
+    addPlatform(4150, 350, 130, 25);
+    addPlatform(4800, 340, 150, 25);
 
-        addEnemy(450, 450);
-        addEnemy(1100, 1100, "fast");
-        addEnemy(1750, 1750);
-        addEnemy(2500, 2500, "fast");
-        addEnemy(3300, 3300);
-        addEnemy(4200, 4200, "fast");
-        addEnemy(4900, 4900);
-        addEnemy(5900, 5900);
+    // ENEMIES
+    addEnemy(450, 450);
+    addEnemy(1100, 1100, "fast");
+    addEnemy(1750, 1750);
+    addEnemy(2500, 2500, "fast");
+    addEnemy(3300, 3300);
+    addEnemy(4200, 4200, "fast");
+    addEnemy(4900, 4900);
+    addEnemy(5900, 5900);
 
-        [
-            [350,410],
-            [550,315],
-            [1120,295],
-            [1650,315],
-            [1930,245],
-            [2400,315],
-            [2650,245],
-            [3200,305],
-            [3500,245],
-            [4200,315],
-            [4850,305],
-            [5600,410],
-            [6000,410],
-            [6500,410]
-        ].forEach(b => addBone(b[0], b[1]));
-    }
+    // Bones
+    [
+        [350,410],
+        [550,315],
+        [1120,295],
+        [1650,315],
+        [1930,245],
+        [2400,315],
+        [2650,245],
+        [3200,305],
+        [3500,245],
+        [4200,315],
+        [4850,305],
+        [5600,410],
+        [6000,410],
+        [6500,410]
+    ].forEach(b => addBone(b[0], b[1]));
+}
 
 
     /*
